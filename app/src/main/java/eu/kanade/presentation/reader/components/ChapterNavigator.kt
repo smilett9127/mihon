@@ -1,6 +1,7 @@
 package eu.kanade.presentation.reader.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -12,14 +13,19 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalSlider
 import androidx.compose.material3.rememberSliderState
 import androidx.compose.material3.surfaceColorAtElevation
@@ -29,16 +35,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -114,6 +125,12 @@ fun ChapterNavigator(
 
     val onPageChange: (Int) -> Unit = { onPageIndexChange(it - 1) }
 
+    // 跳頁對話框是否顯示
+    var showJumpDialog by remember { mutableStateOf(false) }
+    val onCurrentPageClick: () -> Unit = {
+        if (totalPages > 1) showJumpDialog = true
+    }
+
     if (type.isHorizontal()) {
         HorizontalChapterNavigator(
             isRtl = type == ChapterNavigatorType.HORIZONTAL_RTL,
@@ -130,6 +147,7 @@ fun ChapterNavigator(
             mainAxisPadding = mainAxisPadding,
             backgroundColor = backgroundColor,
             buttonColor = buttonColor,
+            onCurrentPageClick = onCurrentPageClick,
             modifier = modifier,
         )
     } else {
@@ -147,9 +165,73 @@ fun ChapterNavigator(
             mainAxisPadding = mainAxisPadding,
             backgroundColor = backgroundColor,
             buttonColor = buttonColor,
+            onCurrentPageClick = onCurrentPageClick,
             modifier = modifier,
         )
     }
+
+    if (showJumpDialog) {
+        JumpToPageDialog(
+            totalPages = totalPages,
+            onDismiss = { showJumpDialog = false },
+            onConfirm = { page ->
+                showJumpDialog = false
+                onPageChange(page)
+                onPageIndexChangeFinished()
+            },
+        )
+    }
+}
+
+@Composable
+private fun JumpToPageDialog(
+    totalPages: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    val page = text.toIntOrNull()
+    val isValid = page != null && page in 1..totalPages
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "跳至頁面") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { input -> text = input.filter { it.isDigit() }.take(5) },
+                singleLine = true,
+                isError = text.isNotEmpty() && !isValid,
+                label = { Text(text = "輸入頁數（1–$totalPages）") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Go,
+                ),
+                keyboardActions = KeyboardActions(
+                    onGo = { if (page != null && isValid) onConfirm(page) },
+                ),
+                modifier = Modifier.focusRequester(focusRequester),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = isValid,
+                onClick = { if (page != null && isValid) onConfirm(page) },
+            ) {
+                Text(text = "前往")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "取消")
+            }
+        },
+    )
 }
 
 @Composable
@@ -168,6 +250,7 @@ fun HorizontalChapterNavigator(
     mainAxisPadding: Dp,
     backgroundColor: Color,
     buttonColor: IconButtonColors,
+    onCurrentPageClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val layoutDirection = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
@@ -203,7 +286,12 @@ fun HorizontalChapterNavigator(
                             .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(contentAlignment = Alignment.CenterEnd) {
+                        Box(
+                            modifier = Modifier
+                                .clickable(onClick = onCurrentPageClick)
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.CenterEnd,
+                        ) {
                             Text(text = currentPage.toString())
                             // Taking up full length so the slider doesn't shift when 'currentPage' length changes
                             Text(text = totalPages.toString(), color = Color.Transparent)
@@ -257,6 +345,7 @@ fun VerticalChapterNavigator(
     mainAxisPadding: Dp,
     backgroundColor: Color,
     buttonColor: IconButtonColors,
+    onCurrentPageClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -286,7 +375,12 @@ fun VerticalChapterNavigator(
                     .padding(vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(text = currentPage.toString())
+                Text(
+                    text = currentPage.toString(),
+                    modifier = Modifier
+                        .clickable(onClick = onCurrentPageClick)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
 
                 VerticalSlider(
                     state = state,
