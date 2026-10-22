@@ -40,6 +40,9 @@ class WebGpuConfig(
     var imageCropBorders = false
         private set
 
+    var imageCropBordersWebtoon = false
+        private set
+
     var navigateToPan = false
         private set
 
@@ -70,6 +73,16 @@ class WebGpuConfig(
     var continuousGap = 10
         private set
 
+    var imageFilters = emptyList<WebGpuShader>()
+        private set
+
+    var imageFiltersChangedListener: (() -> Unit)? = null
+
+    var tileFilters = emptyList<WebGpuShader>()
+        private set
+
+    var tileFiltersChangedListener: (() -> Unit)? = null
+
     init {
         readerPreferences.readerTheme.register(
             {
@@ -84,6 +97,11 @@ class WebGpuConfig(
         readerPreferences.zoomStart.register({ zoomTypeFromPreference(it) }, { imagePropertyChangedListener?.invoke() })
 
         readerPreferences.cropBorders.register({ imageCropBorders = it }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.cropBordersWebtoon.register(
+            { imageCropBordersWebtoon = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
 
         readerPreferences.navigateToPan.register({ navigateToPan = it })
 
@@ -153,9 +171,23 @@ class WebGpuConfig(
             { imagePropertyChangedListener?.invoke() },
         )
 
+        readerPreferences.disableDoubleTapGestures.register({
+            viewer.pager.state.doubleTapGesturesEnabled = !it
+        })
+
         readerPreferences.continuousGap.register(
             { continuousGap = it },
             { imagePropertyChangedListener?.invoke() },
+        )
+
+        readerPreferences.imageFilters.register(
+            { imageFilters = it },
+            { imageFiltersChangedListener?.invoke() },
+        )
+
+        readerPreferences.tileFilters.register(
+            { tileFilters = it },
+            { tileFiltersChangedListener?.invoke() },
         )
     }
 
