@@ -20,6 +20,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -50,6 +51,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -189,49 +191,55 @@ private fun JumpToPageDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit,
 ) {
-    var text by remember { mutableStateOf("") }
-    val page = text.toIntOrNull()
-    val isValid = page != null && page in 1..totalPages
-    val focusRequester = remember { FocusRequester() }
+    // 強制使用從左到右的排版，避免跟著漫畫的閱讀方向（RTL）跑掉
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        var text by remember { mutableStateOf("") }
+        val page = text.toIntOrNull()
+        val isValid = page != null && page in 1..totalPages
+        val focusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(text = "跳至頁面") },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { input -> text = input.filter { it.isDigit() }.take(5) },
+                    singleLine = true,
+                    isError = text.isNotEmpty() && !isValid,
+                    label = { Text(text = "輸入頁數（1–$totalPages）") },
+                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Go,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onGo = { if (page != null && isValid) onConfirm(page) },
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = isValid,
+                    onClick = { if (page != null && isValid) onConfirm(page) },
+                ) {
+                    Text(text = "前往")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(text = "取消")
+                }
+            },
+        )
     }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = "跳至頁面") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { input -> text = input.filter { it.isDigit() }.take(5) },
-                singleLine = true,
-                isError = text.isNotEmpty() && !isValid,
-                label = { Text(text = "輸入頁數（1–$totalPages）") },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Go,
-                ),
-                keyboardActions = KeyboardActions(
-                    onGo = { if (page != null && isValid) onConfirm(page) },
-                ),
-                modifier = Modifier.focusRequester(focusRequester),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                enabled = isValid,
-                onClick = { if (page != null && isValid) onConfirm(page) },
-            ) {
-                Text(text = "前往")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "取消")
-            }
-        },
-    )
 }
 
 @Composable
